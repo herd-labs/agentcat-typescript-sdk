@@ -68,6 +68,24 @@ agentcat.track(mcpServer, "proj_0000000");
 // Register your tools
 ```
 
+### Effect MCP servers
+
+Building your MCP server with Effect's `McpServer` (`effect/unstable/ai`, effect v4)? An Effect server is a Layer graph, not a server instance, so instead of `track()` use the `agentcat/effect` entry — drop-in mirrors of `McpServer.layerStdio` / `layerHttp` / `layer` that add the same analytics capture:
+
+```ts
+import { Layer } from "effect";
+import * as AgentCat from "agentcat/effect";
+
+const Server = Layer.mergeAll(MyToolkit, MyResources).pipe(
+  Layer.provide(
+    AgentCat.layerStdio({ name: "demo", version: "1.0.0" }, "proj_0000000"),
+  ),
+  Layer.provide(NodeStdio.layer),
+);
+```
+
+The entry is ESM-only, `effect` is an optional peer dependency (`^4.0.0-beta.85`), and the root `agentcat` entry never loads effect. See the [Effect integration guide](./docs/effect.md) for options (`identify` as an Effect, custom events from tool handlers, session semantics).
+
 ### Identifying users
 
 You can identify your user sessions with a simple callback AgentCat exposes, called `identify`.

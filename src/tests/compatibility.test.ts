@@ -412,9 +412,8 @@ describe("Compatibility Module", () => {
     beforeEach(async () => {
       try {
         // Try to import McpServer - it's available in v1.3.0+
-        const { McpServer: ImportedMcpServer } = await import(
-          "@modelcontextprotocol/sdk/server/mcp.js"
-        );
+        const { McpServer: ImportedMcpServer } =
+          await import("@modelcontextprotocol/sdk/server/mcp.js");
         McpServer = ImportedMcpServer;
         hasCompatibleVersion = true;
       } catch (error) {

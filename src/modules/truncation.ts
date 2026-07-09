@@ -306,7 +306,11 @@ function getNestedValue(obj: any, path: string[]): any {
 function setNestedValue(obj: any, path: string[], value: any): void {
   let current = obj;
   for (let i = 0; i < path.length - 1; i++) current = current[path[i]];
-  current[path[path.length - 1]] = value;
+  const lastKey = path.at(-1);
+  if (lastKey === undefined) {
+    return;
+  }
+  current[lastKey] = value;
 }
 
 /**

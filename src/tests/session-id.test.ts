@@ -1,15 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   setupTestServerAndClient,
   resetTodos,
 } from "./test-utils/client-server-factory";
 import { track } from "../index";
 import { EventCapture } from "./test-utils";
-import { getServerTrackingData } from "../modules/internal";
-import { HighLevelMCPServerLike } from "../types";
+import {
+  getServerTrackingData,
+  setServerTrackingData,
+} from "../modules/internal";
+import { AgentCatData, HighLevelMCPServerLike, MCPServerLike } from "../types";
 import {
   deriveSessionIdFromMCPSession,
   getServerSessionId,
+  getSessionInfo,
 } from "../modules/session";
 
 describe("Session ID Management", () => {
@@ -92,6 +96,39 @@ describe("Session ID Management", () => {
         deriveSessionIdFromMCPSession(mcpSessionId);
 
       expect(sessionIdWithProject).not.toBe(sessionIdWithoutProject);
+    });
+  });
+
+  describe("Official SDK session info compatibility", () => {
+    it("does not call getClientVersion when client info is already cached", () => {
+      const getClientVersion = vi.fn(() => ({
+        name: "live-client",
+        version: "2.0.0",
+      }));
+      const lowLevelServer = {
+        _serverInfo: { name: "compat-server", version: "1.0.0" },
+        _requestHandlers: new Map(),
+        setRequestHandler: vi.fn(),
+        getClientVersion,
+      } as unknown as MCPServerLike;
+      const data: AgentCatData = {
+        projectId: "proj_session_info_compat",
+        sessionId: "ses_cached",
+        lastActivity: new Date(),
+        identifiedSessions: new Map(),
+        sessionInfo: {
+          clientName: "cached-client",
+          clientVersion: "1.0.0",
+        },
+        options: {},
+        sessionSource: "agentcat",
+      };
+
+      setServerTrackingData(lowLevelServer, data);
+      const sessionInfo = getSessionInfo(lowLevelServer, data);
+
+      expect(getClientVersion).not.toHaveBeenCalled();
+      expect(sessionInfo.serverName).toBe("compat-server");
     });
   });
 

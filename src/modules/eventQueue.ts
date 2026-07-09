@@ -4,10 +4,21 @@ import {
   PublishEventRequest,
   PublishEventRequestEventTypeEnum,
 } from "agentcat-api";
-import { Event, UnredactedEvent, MCPServerLike } from "../types.js";
+import {
+  AgentCatData,
+  Event,
+  SessionInfo,
+  UnredactedEvent,
+  MCPServerLike,
+} from "../types.js";
 import { writeToLog } from "./logging.js";
-import { getServerTrackingData } from "./internal.js";
-import { getSessionInfo } from "./session.js";
+import {
+  getServerTrackingData,
+  getContextTrackingData,
+  isTrackingContext,
+  type TrackingContext,
+} from "./internal.js";
+import { getSessionInfo, getSessionInfoForContext } from "./session.js";
 import { redactEvent } from "./redaction.js";
 import { sanitizeEvent } from "./sanitization.js";
 import { truncateEvent } from "./truncation.js";
@@ -234,10 +245,19 @@ export function setTelemetryManager(telemetryManager: TelemetryManager): void {
 }
 
 export function publishEvent(
-  server: MCPServerLike,
+  target: MCPServerLike | TrackingContext,
   eventInput: UnredactedEvent,
 ): void {
-  const data = getServerTrackingData(server);
+  let data: AgentCatData | undefined;
+  let resolveSessionInfo: () => SessionInfo;
+  if (isTrackingContext(target)) {
+    data = getContextTrackingData(target);
+    resolveSessionInfo = () => getSessionInfoForContext(target);
+  } else {
+    data = getServerTrackingData(target);
+    resolveSessionInfo = () => getSessionInfo(target, data);
+  }
+
   if (!data) {
     writeToLog(
       "Warning: Server tracking data not found. Event will not be published.",
@@ -249,7 +269,7 @@ export function publishEvent(
     return;
   }
 
-  const sessionInfo = getSessionInfo(server, data);
+  const sessionInfo = resolveSessionInfo();
 
   // Calculate duration if not provided
   const duration =

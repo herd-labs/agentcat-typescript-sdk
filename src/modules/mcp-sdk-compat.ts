@@ -100,9 +100,7 @@ export function getObjectShape(
   if (!schema || typeof schema !== "object") return undefined;
 
   let rawShape:
-    | Record<string, unknown>
-    | (() => Record<string, unknown>)
-    | undefined;
+    Record<string, unknown> | (() => Record<string, unknown>) | undefined;
 
   if (isZ4Schema(schema)) {
     const v4Schema = schema as ZodV4Internal;

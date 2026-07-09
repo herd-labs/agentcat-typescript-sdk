@@ -1,12 +1,48 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sdkRoot = join(__dirname, "..", "..");
+const packLockDir = join(tmpdir(), "agentcat-sdk-pack.lock");
+
+const waitSync = (ms: number): void => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
+const withPackLock = <T>(fn: () => T): T => {
+  const deadline = Date.now() + 120_000;
+  while (true) {
+    try {
+      mkdirSync(packLockDir);
+      break;
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? error.code
+          : undefined;
+      if (code !== "EEXIST" || Date.now() > deadline) {
+        throw error;
+      }
+      waitSync(100);
+    }
+  }
+
+  try {
+    return fn();
+  } finally {
+    rmSync(packLockDir, { recursive: true, force: true });
+  }
+};
 // The published package name, read from package.json so this test follows any
 // package rename automatically.
 const pkgName: string = JSON.parse(
@@ -25,10 +61,11 @@ describe("ESM consumer smoke test", () => {
   let tarballPath: string;
 
   beforeAll(() => {
-    const packOutput = execFileSync(
-      "pnpm",
-      ["pack", "--pack-destination", tmpdir()],
-      { cwd: sdkRoot, encoding: "utf8" },
+    const packOutput = withPackLock(() =>
+      execFileSync("pnpm", ["pack", "--pack-destination", tmpdir()], {
+        cwd: sdkRoot,
+        encoding: "utf8",
+      }),
     );
     const lastLine = packOutput.trim().split("\n").pop();
     if (!lastLine || !lastLine.endsWith(".tgz")) {

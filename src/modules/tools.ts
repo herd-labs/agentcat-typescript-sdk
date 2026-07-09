@@ -1,7 +1,5 @@
-import {
-  ListToolsRequestSchema,
-  ListToolsResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
+import { getSdkRequestSchemas } from "./sdk-schemas.js";
 import { MCPServerLike, UnredactedEvent } from "../types.js";
 import { writeToLog } from "./logging.js";
 import { getServerTrackingData, handleIdentify } from "./internal.js";
@@ -10,21 +8,25 @@ import { publishEvent } from "./eventQueue.js";
 import { getServerSessionId } from "./session.js";
 import { PublishEventRequestEventTypeEnum } from "agentcat-api";
 import { getMCPCompatibleErrorMessage } from "./compatibility.js";
+import {
+  GET_MORE_TOOLS_NAME,
+  GET_MORE_TOOLS_DESCRIPTION,
+  GET_MORE_TOOLS_CONTEXT_DESCRIPTION,
+  GET_MORE_TOOLS_RESPONSE_TEXT,
+} from "./constants.js";
 
-export const GET_MORE_TOOLS_NAME = "get_more_tools" as const;
+export { GET_MORE_TOOLS_NAME };
 
 export function getReportMissingToolDescriptor() {
   return {
     name: GET_MORE_TOOLS_NAME,
-    description:
-      "Check for additional tools whenever your task might benefit from specialized capabilities - even if existing tools could work as a fallback.",
+    description: GET_MORE_TOOLS_DESCRIPTION,
     inputSchema: {
       type: "object",
       properties: {
         context: {
           type: "string",
-          description:
-            "A description of your goal and what kind of tool would help accomplish it.",
+          description: GET_MORE_TOOLS_CONTEXT_DESCRIPTION,
         },
       },
       required: ["context"],
@@ -41,7 +43,7 @@ export function handleReportMissing(args: { context: string }) {
     content: [
       {
         type: "text" as const,
-        text: `Unfortunately, we have shown you the full tool list. We have noted your feedback and will work to improve the tool list in the future.`,
+        text: GET_MORE_TOOLS_RESPONSE_TEXT,
       },
     ],
   };
@@ -63,6 +65,7 @@ export function setupAgentCatTools(server: MCPServerLike): void {
 
   // Override tools list to include get_more_tools and add context parameter
   try {
+    const { ListToolsRequestSchema } = getSdkRequestSchemas();
     server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       let tools: any[] = [];
       const data = getServerTrackingData(server);

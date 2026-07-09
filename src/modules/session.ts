@@ -5,7 +5,17 @@ import {
   SessionInfo,
   CompatibleRequestHandlerExtra,
 } from "../types.js";
-import { getServerTrackingData, setServerTrackingData } from "./internal.js";
+import {
+  getServerTrackingData,
+  setServerTrackingData,
+  getTrackingContext,
+  getContextTrackingData,
+  setContextTrackingData,
+  getSessionState,
+  readOfficialSdkSessionInfo,
+  TrackingContext,
+  SessionInfoSnapshot,
+} from "./internal.js";
 import KSUID from "../thirdparty/ksuid/index.js";
 import packageJson from "../../package.json" with { type: "json" };
 import { createHash } from "crypto";
@@ -77,6 +87,11 @@ export function getServerSessionId(
     data.lastMcpSessionId = mcpSessionId;
     data.sessionSource = "mcp";
     setServerTrackingData(server, data);
+    // Shadow per-session state: record the derived id for this MCP session
+    const ctx = getTrackingContext(server);
+    if (ctx) {
+      getSessionState(ctx, mcpSessionId).derivedSessionId = data.sessionId;
+    }
     // If MCP sessionId hasn't changed, continue using the existing derived KSUID
     setLastActivity(server);
     return data.sessionId;
@@ -112,33 +127,24 @@ export function setLastActivity(server: MCPServerLike): void {
 
   data.lastActivity = new Date();
   setServerTrackingData(server, data);
+  // Shadow per-session state: mirror activity for the current MCP session
+  const ctx = getTrackingContext(server);
+  if (ctx && data.lastMcpSessionId) {
+    getSessionState(ctx, data.lastMcpSessionId).lastActivity =
+      data.lastActivity;
+  }
 }
 
 export function getSessionInfo(
   server: MCPServerLike,
   data: AgentCatData | undefined,
 ): SessionInfo {
-  let clientInfo: ServerClientInfoLike | undefined = {
-    name: undefined,
-    version: undefined,
-  };
-  if (!data?.sessionInfo.clientName) {
-    clientInfo = server.getClientVersion();
-  }
-  const actorInfo = data?.identifiedSessions.get(data.sessionId);
-
-  const sessionInfo: SessionInfo = {
-    ipAddress: undefined, // grab from django
-    sdkLanguage: "TypeScript", // hardcoded for now
-    agentcatVersion: packageJson.version,
-    serverName: server._serverInfo?.name,
-    serverVersion: server._serverInfo?.version,
-    clientName: clientInfo?.name,
-    clientVersion: clientInfo?.version,
-    identifyActorGivenId: actorInfo?.userId,
-    identifyActorName: actorInfo?.userName,
-    identifyActorData: actorInfo?.userData || {},
-  };
+  const ctx = getTrackingContext(server);
+  const includeClientInfo = !data?.sessionInfo.clientName;
+  const provided = ctx
+    ? ctx.sessionInfoProvider(includeClientInfo)
+    : readOfficialSdkSessionInfo(server, includeClientInfo);
+  const sessionInfo = buildSessionInfo(provided, data);
 
   if (!data) {
     return sessionInfo;
@@ -146,5 +152,75 @@ export function getSessionInfo(
 
   data.sessionInfo = sessionInfo;
   setServerTrackingData(server, data);
+  recordSessionClientInfo(ctx, data);
   return data.sessionInfo;
+}
+
+/**
+ * Context-first variant of getSessionInfo for callers without a server
+ * object; session info comes solely from the context's provider.
+ */
+export function getSessionInfoForContext(ctx: TrackingContext): SessionInfo {
+  const data = getContextTrackingData(ctx);
+  const sessionInfo = buildSessionInfo(
+    ctx.sessionInfoProvider(!data?.sessionInfo.clientName),
+    data,
+  );
+
+  if (!data) {
+    return sessionInfo;
+  }
+
+  data.sessionInfo = sessionInfo;
+  setContextTrackingData(ctx, data);
+  recordSessionClientInfo(ctx, data);
+  return data.sessionInfo;
+}
+
+function buildSessionInfo(
+  provided: SessionInfoSnapshot,
+  data: AgentCatData | undefined,
+): SessionInfo {
+  let clientInfo: ServerClientInfoLike | undefined = {
+    name: undefined,
+    version: undefined,
+  };
+  if (!data?.sessionInfo.clientName) {
+    clientInfo = { name: provided.clientName, version: provided.clientVersion };
+  }
+  const actorInfo = data?.identifiedSessions.get(data.sessionId);
+
+  return {
+    ipAddress: undefined, // grab from django
+    sdkLanguage: "TypeScript", // hardcoded for now
+    agentcatVersion: packageJson.version,
+    serverName: provided.serverName,
+    serverVersion: provided.serverVersion,
+    clientName: clientInfo?.name,
+    clientVersion: clientInfo?.version,
+    identifyActorGivenId: actorInfo?.userId,
+    identifyActorName: actorInfo?.userName,
+    identifyActorData: actorInfo?.userData || {},
+  };
+}
+
+/**
+ * Shadow per-session state: retain the last observed client info for the
+ * current MCP session (skips the legacy clientName flip-flop writes).
+ */
+function recordSessionClientInfo(
+  ctx: TrackingContext | undefined,
+  data: AgentCatData,
+): void {
+  if (!ctx || !data.lastMcpSessionId) {
+    return;
+  }
+  const { clientName, clientVersion } = data.sessionInfo;
+  if (clientName === undefined && clientVersion === undefined) {
+    return;
+  }
+  getSessionState(ctx, data.lastMcpSessionId).clientInfo = {
+    name: clientName,
+    version: clientVersion,
+  };
 }

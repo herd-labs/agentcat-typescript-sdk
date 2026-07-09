@@ -1,9 +1,5 @@
-import {
-  CallToolRequestSchema,
-  InitializeRequestSchema,
-  ListToolsRequestSchema,
-  ListToolsResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
+import { getSdkRequestSchemas } from "./sdk-schemas.js";
 import {
   HighLevelMCPServerLike,
   MCPServerLike,
@@ -60,6 +56,7 @@ export function setupListToolsTracing(
   }
 
   try {
+    const { ListToolsRequestSchema } = getSdkRequestSchemas();
     server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       let tools: any[] = [];
       const data = getServerTrackingData(server);
@@ -167,6 +164,7 @@ export function setupInitializeTracing(
   const originalInitializeHandler = handlers.get("initialize");
 
   if (originalInitializeHandler) {
+    const { InitializeRequestSchema } = getSdkRequestSchemas();
     server.setRequestHandler(
       InitializeRequestSchema,
       async (request, extra) => {
@@ -215,6 +213,8 @@ export function setupInitializeTracing(
 
 export function setupToolCallTracing(server: MCPServerLike): void {
   try {
+    const { CallToolRequestSchema, InitializeRequestSchema } =
+      getSdkRequestSchemas();
     const handlers = server._requestHandlers;
 
     const originalCallToolHandler = handlers.get("tools/call");

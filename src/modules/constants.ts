@@ -4,6 +4,16 @@ export const DEFAULT_CONTEXT_PARAMETER_DESCRIPTION = `Explain why you are callin
 export const AGENTCAT_CUSTOM_EVENT_TYPE = "agentcat:custom";
 export const AGENTCAT_SOURCE = "agentcat";
 
+// get_more_tools tool surface, shared between the official-SDK path
+// (modules/tools.ts) and the Effect path (effect/reportMissing.ts), which is
+// not allowed to import the SDK-coupled tools module.
+export const GET_MORE_TOOLS_NAME = "get_more_tools" as const;
+export const GET_MORE_TOOLS_DESCRIPTION =
+  "Check for additional tools whenever your task might benefit from specialized capabilities - even if existing tools could work as a fallback.";
+export const GET_MORE_TOOLS_CONTEXT_DESCRIPTION =
+  "A description of your goal and what kind of tool would help accomplish it.";
+export const GET_MORE_TOOLS_RESPONSE_TEXT = `Unfortunately, we have shown you the full tool list. We have noted your feedback and will work to improve the tool list in the future.`;
+
 export const DIAGNOSTICS_SCOPE_NAME = "agentcat-diagnostics";
 export const DEFAULT_DIAGNOSTICS_ENDPOINT = "https://otel.agentcat.com";
 

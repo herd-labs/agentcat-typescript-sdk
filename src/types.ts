@@ -1,4 +1,8 @@
-import { CallToolResult } from "@modelcontextprotocol/sdk/types";
+export interface CallToolResult {
+  content: unknown[];
+  isError?: boolean;
+  [key: string]: unknown;
+}
 
 export interface AgentCatOptions {
   enableReportMissing?: boolean;

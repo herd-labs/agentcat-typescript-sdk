@@ -44,6 +44,46 @@ jobs:
       - name: Build TypeScript project
         run: pnpm run build
 
+  # Churn detector for the effect/unstable/* namespace the agentcat/effect
+  # entry builds on: pins the oldest supported beta and floats the latest
+  # beta dist-tag (docs/plans/effect-mcp-support.md, phase 4).
+  test-effect-beta-matrix:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        effect-version: ["4.0.0-beta.85", "4.0.0-beta.94", "beta"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Pin effect ${{ matrix.effect-version }}
+        run: pnpm add -D effect@${{ matrix.effect-version }}
+
+      - name: Run TypeScript type checking
+        run: pnpm run typecheck
+
+      - name: Build package
+        run: pnpm run build
+
+      - name: Run effect integration suites
+        run: pnpm vitest run src/tests/effect-
+
   test-coverage-report:
     runs-on: ubuntu-latest
 
